@@ -1,5 +1,5 @@
 # Use the official ROS 2 Jazzy image as the base image
-FROM ros:jazzy-ros-base-noble
+FROM ros:jazzy-ros-base
 
 # Set the ROS distribution as a build argument
 ARG ROSDISTRO="jazzy"
@@ -18,9 +18,6 @@ RUN apt-get update  -y && \
     python3-vcstool \
     python3-pip \
     ros-$ROSDISTRO-ament-cmake-python \
-    ros-$ROSDISTRO-ros-base=0.11.0-1* \
-    ros-$ROSDISTRO-rmw-zenoh-cpp\
-    ros-$ROSDISTRO-teleop-twist-keyboard\
     && rm -rf /var/lib/apt/lists/*
 
 # ENV RMW_IMPLEMENTATION=rmw_zenoh_cpp
