@@ -55,11 +55,19 @@ COPY src ./src
 COPY util ./util
 COPY entrypoint requirements.txt ./
 
+# Automatically import extra dependencies if dependency_repos.repos exists
+RUN if [ -f src/mocap4ros2_qualisys/dependency_repos.repos ]; then \
+      vcs import src < src/mocap4ros2_qualisys/dependency_repos.repos; \
+    fi
+    
 # Update rosdep and install dependencies for the ROS 2 workspace
 RUN apt-get update -y && \
     rosdep update --rosdistro $ROSDISTRO && \
     rosdep install --rosdistro $ROSDISTRO --from-paths src --ignore-src -y && \
     rm -rf /var/lib/apt/lists/*
+
+
+
 
 # Install Python dependencies in the virtual environment
 # RUN pip install --break-system-packages --upgrade pip && \

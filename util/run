@@ -37,6 +37,7 @@ else
         -v "/dev:/dev" \
         --network host \
         --privileged
+    fi
 fi
 
 append ARGS \
