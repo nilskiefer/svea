@@ -19,20 +19,27 @@ class VelocityNode(Node):
         pos = rb.pose.position
         quat = rb.pose.orientation
         now = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+
+        # Check for zero-norm quaternion
+        norm = (quat.x**2 + quat.y**2 + quat.z**2 + quat.w**2) ** 0.5
+        if norm < 1e-6:
+            self.get_logger().warn("Received zero-norm quaternion, skipping frame.")
+            self.last_pos = pos
+            self.last_time = now
+            return
+
         if self.last_pos is not None and self.last_time is not None:
             dt = now - self.last_time
             if dt > 0:
-                # Velocity in global frame
                 vx = (pos.x - self.last_pos.x) / dt
                 vy = (pos.y - self.last_pos.y) / dt
                 vz = (pos.z - self.last_pos.z) / dt
 
-                # Rotate velocity into body frame
                 r = Rotation.from_quat([quat.x, quat.y, quat.z, quat.w])
                 vel_body = r.inv().apply([vx, vy, vz])
 
                 twist = Twist()
-                twist.linear.x = vel_body[0]  # Forward velocity in body frame
+                twist.linear.x = vel_body[0]
                 twist.linear.y = vel_body[1]
                 twist.linear.z = vel_body[2]
                 self.pub.publish(twist)
