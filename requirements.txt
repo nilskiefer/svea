@@ -9,6 +9,7 @@
 
 # These are for RTK-GPS
 pyserial
+cbor2
 pyubx2
 geopy
 utm
