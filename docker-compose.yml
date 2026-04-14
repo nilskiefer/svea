@@ -15,5 +15,8 @@ services:
       - /dev:/dev
     ports:
       - "8765:8765"
+      - "14551:14551/udp" # MAVLink telemetry
+
     command: ["sleep", "infinity"]
     privileged: true
+

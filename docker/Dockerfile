@@ -19,10 +19,14 @@ RUN apt-get update  -y && \
     python3-pip \
     ros-$ROSDISTRO-ament-cmake-python \
     ros-$ROSDISTRO-ros-base=0.11.0-1* \
+    ros-$ROSDISTRO-mavros \
+    ros-$ROSDISTRO-mavros-extras \
     # ros-$ROSDISTRO-rmw-zenoh-cpp\
     ros-$ROSDISTRO-teleop-twist-keyboard\
     && ldconfig /usr/local/lib \
     && rm -rf /var/lib/apt/lists/*
+
+RUN /opt/ros/$ROSDISTRO/lib/mavros/install_geographiclib_datasets.sh
 
 # ENV RMW_IMPLEMENTATION=rmw_zenoh_cpp
 
