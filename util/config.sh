@@ -20,16 +20,12 @@ main() {
 
     withdefault BUILD_CONFIG    "default"
     if [ "$BUILD_CONFIG" = "default" ]; then
-        # building for host platform
-        withdefault BUILD_PLATFORM  "$(uname -m)"
         withdefault BUILD_CONTEXT   "$REPOSITORY_PATH"
         withdefault BUILD_FILE      "docker/Dockerfile"
         withdefault BUILD_TAG       "ghcr.io/kth-sml/svea:latest"
         withdefault IMAGE_TAG       "$REPOSITORY_NAME"
         withdefault IMAGE_PUSH      "0"
     elif [ "$BUILD_CONFIG" = "base" ]; then
-        # building for host platform
-        withdefault BUILD_PLATFORM  "$(uname -m)"
         withdefault BUILD_CONTEXT   "$REPOSITORY_PATH"
         withdefault BUILD_FILE      "docker/Dockerfile"
         withdefault BUILD_TAG       "ros:$ROSDISTRO"
@@ -60,6 +56,11 @@ main() {
         withdefault IMAGE_TAG       "ghcr.io/kth-sml/svea:latest"
         withdefault IMAGE_PUSH      "1"
     fi
+    
+    if isempty BUILD_PLATFORM; then
+        BUILD_PLATFORM="$(host_build_platform)" || exit $?
+    fi
+    BUILD_PLATFORM="$(normalize_platform_list "$BUILD_PLATFORM")" || exit $?
 
     withdefault CONTAINER_NAME "$REPOSITORY_NAME"
     withdefault SHARED_VOLUME  "$BUILD_CONTEXT/src:$WORKSPACE/src"
@@ -82,6 +83,53 @@ main() {
         echovar SHARED_VOLUME
         echo
     fi
+}
+
+host_build_platform() {
+    detect_from_docker_platform || return $?
+}
+
+detect_from_docker_platform() {
+    DOCKER_OS="$(docker info --format '{{.OSType}}' 2>/dev/null)" || {
+        echo "Error (2): Failed to query Docker daemon OS. Is Docker running?" >&2
+        return 2
+    }
+    DOCKER_ARCH="$(docker info --format '{{.Architecture}}' 2>/dev/null)" || {
+        echo "Error (2): Failed to query Docker daemon architecture. Is Docker running?" >&2
+        return 2
+    }
+
+    normalize_platform "${DOCKER_OS}/${DOCKER_ARCH}"
+}
+
+normalize_platform() {
+    case "$1" in
+        linux/amd64|amd64|x86_64) echo "linux/amd64" ;;
+        linux/arm64|linux/arm64/v8|linux/aarch64|arm64|aarch64) echo "linux/arm64" ;;
+        darwin/amd64|darwin/x86_64) echo "linux/amd64" ;;
+        darwin/arm64|darwin/aarch64) echo "linux/arm64" ;;
+        *)
+            echo "Error (2): Unsupported BUILD_PLATFORM \"$1\". Use linux/amd64 or linux/arm64." >&2
+            return 2
+            ;;
+    esac
+}
+
+normalize_platform_list() {
+    OLD_IFS="$IFS"
+    IFS=','
+    set -- $1
+    IFS="$OLD_IFS"
+
+    NORMALIZED=""
+    SEP=""
+    for platform in "$@"; do
+        NORMALIZED_PLATFORM="$(normalize_platform "$platform")" || return $?
+        NORMALIZED="${NORMALIZED}${SEP}${NORMALIZED_PLATFORM}"
+        SEP=","
+    done
+
+    echo "$NORMALIZED"
 }
 
 call() {
@@ -111,7 +159,9 @@ jetson_release() {
 panic() {
     [ $# -gt 1 ] && CODE=$1 && shift || CODE=1
     echo "Error ($CODE): $1"
-    usage
+    if command -v usage >/dev/null 2>&1; then
+        usage
+    fi
     exit $CODE
 }
 
