@@ -11,6 +11,7 @@
 ##      > docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 ##      > docker buildx create --use
 
+REQUIRE_BUILD_PLATFORM=1
 . "$(dirname "$0")/config.sh"
 
 CMD="docker buildx build"

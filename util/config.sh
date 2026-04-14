@@ -12,6 +12,7 @@
 main() {
 
     withdefault DEBUG "0"
+    withdefault REQUIRE_BUILD_PLATFORM "0"
 
     withdefault ROSDISTRO       "jazzy"
     withdefault WORKSPACE       "/svea_ws"
@@ -58,9 +59,13 @@ main() {
     fi
     
     if isempty BUILD_PLATFORM; then
-        BUILD_PLATFORM="$(host_build_platform)" || exit $?
+        if istrue REQUIRE_BUILD_PLATFORM; then
+            BUILD_PLATFORM="$(host_build_platform)" || exit $?
+            BUILD_PLATFORM="$(normalize_platform_list "$BUILD_PLATFORM")" || exit $?
+        fi
+    else
+        BUILD_PLATFORM="$(normalize_platform_list "$BUILD_PLATFORM")" || exit $?
     fi
-    BUILD_PLATFORM="$(normalize_platform_list "$BUILD_PLATFORM")" || exit $?
 
     withdefault CONTAINER_NAME "$REPOSITORY_NAME"
     withdefault SHARED_VOLUME  "$BUILD_CONTEXT/src:$WORKSPACE/src"

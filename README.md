@@ -67,10 +67,10 @@ to download the library. Then, a new directory will appear called
 cd svea
 ```
 
-To install the Docker image containing the entire codebase run:
+To build the Docker image containing the entire codebase run:
 
 ```bash
-util/build
+docker compose build
 ```
 
 If it all runs without an error, you have installed the Docker image!
@@ -100,11 +100,16 @@ There are pre-written scripts to serve as examples of how to use the
 core library. See and read the source code in
 `svea_examples/scripts`.
 
-Start by entering into the installed Docker image by going to the root of `svea`
-and running
+Start the default container:
 
 ```bash
-util/run-dev
+docker compose up -d
+```
+
+Then enter a shell in the running container:
+
+```bash
+docker compose exec svea bash
 ```
 
 Then, for a simulated, pure pursuit example, call:
@@ -148,16 +153,15 @@ Running the localization amounts to adding `localize.launch` to your project lau
 <include file="$(find svea_sensors)/launch/localize.launch"/>
 ```
 
-### Using priviliged run script
+### Hardware access
 
-Instead of using `util/run-dev`, which is intended for development environments
-and simulation, to access all hardware on the real SVEA you must start
-a container with the priviliged run script:
+The default `svea` service is already configured as privileged and mounts
+`/dev`, so use the same container for hardware access:
 
 ```bash
-util/run
+docker compose up -d
+docker compose exec svea bash
 ```
 
 # Documentation
 After cloning the repository, you can open the core library's documentation by opening `docs/library/_build/index.html` in your favorite browser.
-

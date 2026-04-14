@@ -1,0 +1,19 @@
+services:
+  svea:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        ROSDISTRO: ${ROSDISTRO:-jazzy}
+    image: svea
+    stdin_open: true
+    tty: true
+    environment:
+      TERM: xterm-256color
+    volumes:
+      - ./src:/svea_ws/src
+      - /dev:/dev
+    ports:
+      - "8765:8765"
+    command: ["sleep", "infinity"]
+    privileged: true
