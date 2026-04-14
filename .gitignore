@@ -3,3 +3,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 log/
+mav.parm
+mav.tlog
+mav.tlog.raw

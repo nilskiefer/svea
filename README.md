@@ -4,6 +4,7 @@
 - [SVEA Website](https://svea.eecs.kth.se)
 - [SVEA Docs](https://kth-sml.github.io/svea)
 - [Tutorials](https://kth-sml.github.io/svea/tutorials/0_intro)
+- [Development Guide](DEVREADME.md)
 
 ## A short description
 This repo contains a basic library of python objects and scripts to make
