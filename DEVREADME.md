@@ -51,6 +51,12 @@ mavproxy.py \
   --out=udp:127.0.0.1:14551
 ```
 
+Linux/container copy-paste (auto-detect FCU device, hard-fail if missing):
+
+```bash
+DEV="$(ls -1 /dev/serial/by-id/* 2>/dev/null | head -n1)"; [ -n "$DEV" ] || DEV="$(ls -1 /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | head -n1)"; [ -n "$DEV" ] || { echo "No FCU serial device found"; exit 1; }; mavproxy.py --master="${DEV},57600" --out=udp:127.0.0.1:14550 --out=udp:127.0.0.1:14551
+```
+
 Notes:
 
 - `14550` is typically consumed by QGroundControl.
