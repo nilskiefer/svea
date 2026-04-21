@@ -562,6 +562,7 @@ class Px4UorbTunnelNode(Node):
         self._unknown_topic = 0
         self._unknown_protocol = 0
         self._reassembly_errors = 0
+        self._decode_error_logs = 0
 
         mavlink_qos = QoSProfile(depth=100)
         mavlink_qos.reliability = ReliabilityPolicy.BEST_EFFORT
@@ -577,6 +578,11 @@ class Px4UorbTunnelNode(Node):
             f"schemas={self._schema_registry.schema_count}, "
             f"topics={self._schema_registry.topic_count})"
         )
+
+    def _log_decode_exception(self, context: str, exc: Exception) -> None:
+        if self._decode_error_logs < 20:
+            self.get_logger().error(f"{context}: {type(exc).__name__}: {exc}")
+            self._decode_error_logs += 1
 
     @staticmethod
     def _publish_json(pub, payload: dict) -> None:
@@ -941,7 +947,10 @@ class Px4UorbTunnelNode(Node):
                 )
             except KeyError:
                 self._unknown_topic += 1
-            except Exception:
+            except Exception as exc:
+                self._log_decode_exception(
+                    f"decode_payload failed for topic={topic_name}", exc
+                )
                 self._decode_errors += 1
                 self._tunnel_dropped += 1
                 return
@@ -970,7 +979,10 @@ class Px4UorbTunnelNode(Node):
                 self._topic_instance_publisher(
                     topic_name, int(frame["instance"]), msg_cls
                 ).publish(ros_msg)
-            except Exception:
+            except Exception as exc:
+                self._log_decode_exception(
+                    f"ROS publish failed for topic={topic_name}", exc
+                )
                 self._decode_errors += 1
                 self._tunnel_dropped += 1
                 return
