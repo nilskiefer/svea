@@ -21,6 +21,7 @@ lark --prefer-binary
 catkin_pkg
 plotly
 MAVProxy
+future
 
 # FMQ requirements
 # -r src/ros_fmq_bridge/requirements.txt
