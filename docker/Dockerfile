@@ -3,7 +3,7 @@ FROM ros:jazzy-ros-base
 
 # Set the ROS distribution as a build argument
 ARG ROSDISTRO="jazzy"
-ENV ROSDISTRO=$ROSDISTRO
+ENV ROS_DISTRO=$ROSDISTRO
 
 # Install bootstrap tools and ROS 2 packages
 RUN apt-get update  -y && \
@@ -81,7 +81,10 @@ ENV RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 # Source the setup file in the .bashrc for convenience
 RUN echo "source /opt/ros/$ROSDISTRO/setup.bash" >> ~/.bashrc && \
     echo "source /svea_ws/install/setup.bash" >> ~/.bashrc && \
-    echo "source /svea_ws/install/local_setup.bash" >> ~/.bashrc
+    echo "source /svea_ws/install/local_setup.bash" >> ~/.bashrc && \
+    echo "source /opt/ros/$ROSDISTRO/setup.zsh" >> ~/.zshrc && \
+    echo "source /svea_ws/install/setup.zsh" >> ~/.zshrc && \
+    echo "source /svea_ws/install/local_setup.zsh" >> ~/.zshrc
 
 # For fixing WSL error
 RUN chmod +x ./entrypoint
