@@ -513,6 +513,7 @@ class Px4UorbTunnelNode(Node):
         self.declare_parameter("payload_type", self.UORB_TUNNEL_PAYLOAD_TYPE)
         self.declare_parameter("px4_msg_dir", "")
         self.declare_parameter("ros_msg_package", "px4_msgs")
+        self.declare_parameter("ros_msg_packages", "px4_msgs,svea_msgs")
         self.declare_parameter("legacy_topic_map", "1:power_monitor,2:gpio_in")
         self.declare_parameter("fragment_timeout_sec", 2.0)
 
@@ -520,6 +521,7 @@ class Px4UorbTunnelNode(Node):
         self._payload_type = int(self.get_parameter("payload_type").value)
         self._px4_msg_dir = str(self.get_parameter("px4_msg_dir").value).strip()
         self._ros_msg_package = str(self.get_parameter("ros_msg_package").value).strip()
+        self._ros_msg_packages_raw = str(self.get_parameter("ros_msg_packages").value).strip()
         self._legacy_topic_map_raw = str(self.get_parameter("legacy_topic_map").value)
         self._fragment_timeout_sec = float(
             self.get_parameter("fragment_timeout_sec").value
@@ -531,11 +533,16 @@ class Px4UorbTunnelNode(Node):
             raise RuntimeError(
                 "px4_msg_dir parameter must be set (or a discoverable messages/px4_msgs directory must exist)"
             )
-        if not self._ros_msg_package:
-            raise RuntimeError("ros_msg_package parameter must be set")
+        self._ros_msg_packages = self._parse_ros_msg_packages(
+            self._ros_msg_packages_raw, self._ros_msg_package
+        )
+        if not self._ros_msg_packages:
+            raise RuntimeError("ros_msg_packages/ros_msg_package must provide at least one package name")
 
         self._schema_registry = UorbSchemaRegistry(Path(self._px4_msg_dir))
-        self._ros_msg_module = import_module(f"{self._ros_msg_package}.msg")
+        self._ros_msg_modules = {
+            pkg: import_module(f"{pkg}.msg") for pkg in self._ros_msg_packages
+        }
         self._ros_msg_cls_cache: dict[str, Any] = {}
         self._legacy_topic_map = self._parse_legacy_topic_map(
             self._legacy_topic_map_raw
@@ -566,7 +573,7 @@ class Px4UorbTunnelNode(Node):
         self.get_logger().info(
             f"PX4_UORB_TUNNEL active "
             f"(topic={self._mavlink_topic}, payload_type=0x{self._payload_type:04X}, "
-            f"msg_dir={self._px4_msg_dir}, ros_msg_package={self._ros_msg_package}, "
+            f"msg_dir={self._px4_msg_dir}, ros_msg_packages={self._ros_msg_packages}, "
             f"schemas={self._schema_registry.schema_count}, "
             f"topics={self._schema_registry.topic_count})"
         )
@@ -596,19 +603,38 @@ class Px4UorbTunnelNode(Node):
                 return str(path)
         return ""
 
+    @staticmethod
+    def _parse_ros_msg_packages(raw_packages: str, fallback_package: str) -> tuple[str, ...]:
+        packages: list[str] = []
+
+        if raw_packages:
+            for token in raw_packages.split(","):
+                pkg = token.strip()
+                if pkg and pkg not in packages:
+                    packages.append(pkg)
+
+        if not packages and fallback_package:
+            packages.append(fallback_package)
+
+        return tuple(packages)
+
     def _get_ros_msg_cls(self, schema: UorbSchema):
         msg_cls = self._ros_msg_cls_cache.get(schema.type_name)
         if msg_cls is not None:
             return msg_cls
 
-        msg_cls = getattr(self._ros_msg_module, schema.type_name, None)
-        if msg_cls is None:
-            raise RuntimeError(
-                f"Missing ROS message class {self._ros_msg_package}.msg.{schema.type_name} "
-                f"for uORB topic(s): {', '.join(schema.topic_names)}"
-            )
-        self._ros_msg_cls_cache[schema.type_name] = msg_cls
-        return msg_cls
+        for pkg in self._ros_msg_packages:
+            msg_module = self._ros_msg_modules[pkg]
+            msg_cls = getattr(msg_module, schema.type_name, None)
+            if msg_cls is not None:
+                self._ros_msg_cls_cache[schema.type_name] = msg_cls
+                return msg_cls
+
+        searched = ", ".join(f"{pkg}.msg.{schema.type_name}" for pkg in self._ros_msg_packages)
+        raise RuntimeError(
+            f"Missing ROS message class for uORB topic(s): {', '.join(schema.topic_names)}. "
+            f"Searched: {searched}"
+        )
 
     def _validate_ros_message_compatibility(self) -> None:
         for type_name in self._schema_registry.schema_types:
