@@ -12,7 +12,7 @@ RUN apt-get update  -y && \
     build-essential \
     apt-utils lsb-release \
     cmake \
-    git vim nano curl iputils-ping \
+    git vim nano curl iputils-ping zsh \
     python3-colcon-common-extensions \
     python3-rosdep \
     python3-vcstool \
@@ -27,6 +27,12 @@ RUN apt-get update  -y && \
     && rm -rf /var/lib/apt/lists/*
 
 RUN /opt/ros/$ROSDISTRO/lib/mavros/install_geographiclib_datasets.sh
+
+# Install Oh My Zsh and useful plugins for root shell sessions in the container
+RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && \
+    git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions && \
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting && \
+    sed -i 's/^plugins=(\(.*\))/plugins=(\1 zsh-autosuggestions zsh-syntax-highlighting)/' ~/.zshrc
 
 # ENV RMW_IMPLEMENTATION=rmw_zenoh_cpp
 
