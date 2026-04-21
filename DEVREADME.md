@@ -57,6 +57,35 @@ Notes:
 - Use `14551` for your ROS 2 MAVLink bridge in Docker.
 - From inside the container, connect to `host.docker.internal:14551`.
 
+### Run MAVROS + PX4 uORB tunnel bridge in container
+
+Inside the container, start MAVROS with SVEA params:
+
+```bash
+ros2 run mavros mavros_node --ros-args --params-file /svea_ws/src/svea_core/params/svea_mavros.yaml
+```
+
+In a second shell, start the PX4 uORB TUNNEL bridge:
+
+```bash
+ros2 run svea_core px4_uorb_tunnel
+```
+
+On PX4 NSH, ensure the PX4 uORB tunnel stream is enabled on the MAVLink instance used by
+your USB link (usually instance 0):
+
+```sh
+mavlink stream -u 0 -s PX4_UORB_TUNNEL -r 20
+```
+
+Check output:
+
+```bash
+ros2 topic echo /px4/uorb_tunnel/frame
+ros2 topic echo /px4/uorb/power_monitor
+ros2 topic echo /px4/uorb/gpio_in
+```
+
 ### If port 14550 is already in use
 
 If you see `Address already in use`, quit MAVProxy and restart with a different
