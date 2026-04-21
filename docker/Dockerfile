@@ -48,6 +48,11 @@ COPY src ./src
 COPY util ./util
 COPY entrypoint requirements.txt ./
 
+# Import external message repositories (for example px4_msgs) declared in src/messages/messages.repos.
+RUN if [ -f ./src/messages/messages.repos ]; then \
+    vcs import ./src/messages < ./src/messages/messages.repos; \
+    fi
+
 # Update rosdep and install dependencies for the ROS 2 workspace
 RUN apt-get update -y && \
     rosdep update --rosdistro $ROSDISTRO && \
