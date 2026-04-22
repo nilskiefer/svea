@@ -12,6 +12,11 @@ remote_ros() { source util/remote_ros.sh; }; remote_ros
 
 source "/opt/ros/$ROS_DISTRO/setup.bash" --
 
+# Ensure external message repos are present in mounted workspace (bind mounts hide image-layer imports).
+if [ -f ./src/messages/messages.repos ]; then
+  vcs import --skip-existing ./src/messages < ./src/messages/messages.repos
+fi
+
 # To build anything that has been added by volume...
 colcon build --symlink-install
 
