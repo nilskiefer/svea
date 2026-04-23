@@ -8,6 +8,7 @@ import tty
 from dataclasses import dataclass
 
 import rclpy
+from rclpy.exceptions import RCLError
 from rclpy.node import Node
 from mavros_msgs.msg import ManualControl
 
@@ -241,6 +242,8 @@ class ManualControlWasd(Node):
         return False
 
     def send_stop_once(self):
+        if not rclpy.ok():
+            return
         self._y_cmd = 0.0
         self._z_cmd = 500.0
         stop = ManualControl()
@@ -261,7 +264,11 @@ class ManualControlWasd(Node):
         stop.aux4 = self._aux_on if self.state.aux4_on else self._aux_off
         stop.aux5 = self._aux_on if self.state.aux5_on else self._aux_off
         stop.aux6 = self._aux_off
-        self.pub.publish(stop)
+        try:
+            self.pub.publish(stop)
+        except RCLError:
+            # Shutdown race: context may already be invalid during Ctrl-C teardown.
+            pass
 
 
 def main(args=None):
