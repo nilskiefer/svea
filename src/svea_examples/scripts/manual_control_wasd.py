@@ -63,6 +63,8 @@ class ManualControlWasd(Node):
         self.rate_hz = 20.0
         self.steer_step = 120.0
         self.throttle_step = 55.0
+        self.steer_return_rate = 900.0
+        self.throttle_return_rate = 320.0
         self.min_steer = -1000.0
         self.max_steer = 1000.0
         self.min_throttle = 0.0
@@ -106,11 +108,28 @@ class ManualControlWasd(Node):
             return 1.0
         return 1.0 - math.exp(-dt / tau_s)
 
+    @staticmethod
+    def _move_towards(current: float, target: float, max_step: float) -> float:
+        if current < target:
+            return min(current + max_step, target)
+        if current > target:
+            return max(current - max_step, target)
+        return current
+
     def publish_manual_control(self):
         dt = max(1e-3, time.monotonic() - self._last_publish_ts)
         self._last_publish_ts = time.monotonic()
 
+        # Spring-to-center behavior on target values.
+        # Holding keys (terminal key-repeat) feeds these targets away from center.
+        self.state.steer_target = self._move_towards(
+            self.state.steer_target, 0.0, self.steer_return_rate * dt
+        )
+        self.state.throttle_target = self._move_towards(
+            self.state.throttle_target, 500.0, self.throttle_return_rate * dt
+        )
         self.clamp()
+
         steer_alpha = self._lowpass_alpha(dt, self.steer_tau_s)
         throttle_alpha = self._lowpass_alpha(dt, self.throttle_tau_s)
         self._y_cmd += steer_alpha * (self.state.steer_target - self._y_cmd)
@@ -142,8 +161,8 @@ class ManualControlWasd(Node):
         lines = [
             "",
             "manual_control_wasd keys:",
-            "  w/s or Up/Down    throttle target +/- (incremental)",
-            "  a/d or Left/Right steering target +/- (incremental)",
+            "  w/s or Up/Down    feed throttle +/- (target always decays to 500)",
+            "  a/d or Left/Right feed steering +/- (target always decays to 0)",
             "  c                 center steering",
             "  v                 throttle neutral (500)",
             "  x                 center steering + throttle",
@@ -156,8 +175,8 @@ class ManualControlWasd(Node):
             "  q                 quit",
             "",
             "Safety: CH5 must be low (~1000) for PX4 to accept MAVLink manual control.",
-            "Controls are incremental: taps set intermediate targets, holds ramp via key-repeat.",
-            "Low-pass filter smooths commands so outputs don't snap instantly.",
+            "Targets auto-return to center; hold keys to maintain offset via key-repeat.",
+            "Low-pass filter smooths published commands so outputs do not snap.",
         ]
         for line in lines:
             self.get_logger().info(line)
