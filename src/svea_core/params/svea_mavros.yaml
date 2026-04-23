@@ -3,12 +3,13 @@
   ros__parameters:
     fcu_url: "udp://:14551@host.docker.internal:14551"
     plugin_allowlist:
-      - sys_status
-      - sys_time
-      - command
-      - param
+      #- sys_status
+      #- sys_time
+      #- command
+      #- param
       - rc_io
       - imu
       - state
       - mavlink
       - setpoint_raw
+      - manual_control
