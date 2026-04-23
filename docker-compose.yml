@@ -10,13 +10,22 @@ services:
     tty: true
     environment:
       TERM: xterm-256color
+      MAV_OUT_HOST: 10.0.8.105
+      MAV_OUT_PORT: "14550"
     volumes:
       - ./src:/svea_ws/src
       - /dev:/dev
-    ports:
-      - "8765:8765"
-      - "14551:14551/udp" # MAVLink telemetry
+    network_mode: host
 
-    command: ["sleep", "infinity"]
+    restart: unless-stopped
+    command:
+      - /bin/bash
+      - -lc
+      - >
+        DEV="$$(ls -1 /dev/serial/by-id/* 2>/dev/null | head -n1)";
+        [ -n "$$DEV" ] || DEV="$$(ls -1 /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | head -n1)";
+        [ -n "$$DEV" ] || { echo "No FCU serial device found"; exit 1; };
+        [ -n "$$MAV_OUT_HOST" ] || { echo "MAV_OUT_HOST is empty"; exit 1; };
+        [ -n "$$MAV_OUT_PORT" ] || { echo "MAV_OUT_PORT is empty"; exit 1; };
+        exec mavproxy.py --master="$${DEV},57600" --out=udp:$${MAV_OUT_HOST}:$${MAV_OUT_PORT} --out=udp:$${MAV_OUT_HOST}:14551
     privileged: true
-
