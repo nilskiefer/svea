@@ -11,3 +11,4 @@
       - imu
       - state
       - mavlink
+      - setpoint_raw
