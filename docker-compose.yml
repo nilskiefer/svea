@@ -24,8 +24,16 @@ services:
       - >
         DEV="$$(ls -1 /dev/serial/by-id/* 2>/dev/null | head -n1)";
         [ -n "$$DEV" ] || DEV="$$(ls -1 /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | head -n1)";
-        [ -n "$$DEV" ] || { echo "No FCU serial device found"; exit 1; };
-        [ -n "$$MAV_OUT_HOST" ] || { echo "MAV_OUT_HOST is empty"; exit 1; };
-        [ -n "$$MAV_OUT_PORT" ] || { echo "MAV_OUT_PORT is empty"; exit 1; };
-        exec mavproxy.py --master="$${DEV},57600" --out=udp:$${MAV_OUT_HOST}:$${MAV_OUT_PORT} --out=udp:$${MAV_OUT_HOST}:14551
+        if [ -z "$$DEV" ]; then
+          echo "WARN: No FCU serial device found; container will stay alive for manual debugging.";
+          exec sleep infinity;
+        fi;
+        if [ -z "$$MAV_OUT_HOST" ] || [ -z "$$MAV_OUT_PORT" ]; then
+          echo "WARN: MAV_OUT_HOST or MAV_OUT_PORT is empty; container will stay alive for manual debugging.";
+          exec sleep infinity;
+        fi;
+        mavproxy.py --master="$${DEV},57600" --out=udp:$${MAV_OUT_HOST}:$${MAV_OUT_PORT} --out=udp:$${MAV_OUT_HOST}:14551;
+        code="$$?";
+        echo "WARN: mavproxy.py exited with code $$code; container will stay alive for manual debugging.";
+        exec sleep infinity
     privileged: true
