@@ -9,7 +9,6 @@ import math
 from dataclasses import dataclass
 
 import rclpy
-from rclpy.exceptions import RCLError
 from rclpy.node import Node
 from mavros_msgs.msg import ManualControl
 
@@ -239,7 +238,7 @@ class ManualControlWasd(Node):
         stop.aux6 = self._aux_off
         try:
             self.pub.publish(stop)
-        except RCLError:
+        except Exception:
             # Shutdown race: context may already be invalid during Ctrl-C teardown.
             pass
 
