@@ -25,6 +25,7 @@ class ManualControlFromTwist(Node):
 
         self.declare_parameter("twist_topic", "/cmd_vel")
         self.declare_parameter("twist_stamped_topic", "/cmd_vel_stamped")
+        self.declare_parameter("key_vel_topic", "/key_vel")
         self.declare_parameter("publish_topic", "/mavros/manual_control/send")
         self.declare_parameter("publish_rate_hz", 20.0)
         self.declare_parameter("command_timeout_s", 0.30)
@@ -43,6 +44,7 @@ class ManualControlFromTwist(Node):
 
         self.twist_topic = self.get_parameter("twist_topic").get_parameter_value().string_value
         self.twist_stamped_topic = self.get_parameter("twist_stamped_topic").get_parameter_value().string_value
+        self.key_vel_topic = self.get_parameter("key_vel_topic").get_parameter_value().string_value
         self.publish_topic = self.get_parameter("publish_topic").get_parameter_value().string_value
 
         self.publish_rate_hz = self.get_parameter("publish_rate_hz").get_parameter_value().double_value
@@ -86,6 +88,7 @@ class ManualControlFromTwist(Node):
 
         self.create_subscription(Twist, self.twist_topic, self._on_twist, 10)
         self.create_subscription(TwistStamped, self.twist_stamped_topic, self._on_twist_stamped, 10)
+        self.create_subscription(Twist, self.key_vel_topic, self._on_twist, 10)
 
         # Button/aux control topics (arbitrary controls while using key_teleop for axes).
         self.create_subscription(Bool, "/svea/key/diff_on/set", self._set_diff, 10)
@@ -101,7 +104,7 @@ class ManualControlFromTwist(Node):
 
         self.get_logger().info(
             f"bridge ready: twist='{self.twist_topic}', twist_stamped='{self.twist_stamped_topic}', "
-            f"publish='{self.publish_topic}', rate={self.publish_rate_hz:.1f}Hz"
+            f"key_vel='{self.key_vel_topic}', publish='{self.publish_topic}', rate={self.publish_rate_hz:.1f}Hz"
         )
 
     @staticmethod
