@@ -66,11 +66,15 @@ class ManualControlWasd(Node):
         self.throttle_step = 55.0
         self.steer_return_rate = 1400.0
         self.throttle_return_rate = 1100.0
+        self.input_hold_window_s = 0.14
+        self.active_decay_scale = 0.22
         self.min_steer = -1000.0
         self.max_steer = 1000.0
         self.min_throttle = 0.0
         self.max_throttle = 1000.0
         self._last_publish_ts = time.monotonic()
+        self._last_steer_input_ts = self._last_publish_ts
+        self._last_throttle_input_ts = self._last_publish_ts
 
         # First-order low-pass smoothing. Smaller tau => more responsive.
         self.steer_tau_s = 0.14
@@ -122,12 +126,18 @@ class ManualControlWasd(Node):
         self._last_publish_ts = time.monotonic()
 
         # Spring-to-center behavior on target values.
-        # Holding keys (terminal key-repeat) feeds these targets away from center.
+        # While key-repeat is active on an axis, reduce decay so input can dominate.
+        now = time.monotonic()
+        steer_active = (now - self._last_steer_input_ts) <= self.input_hold_window_s
+        throttle_active = (now - self._last_throttle_input_ts) <= self.input_hold_window_s
+        steer_decay = self.steer_return_rate * (self.active_decay_scale if steer_active else 1.0)
+        throttle_decay = self.throttle_return_rate * (self.active_decay_scale if throttle_active else 1.0)
+
         self.state.steer_target = self._move_towards(
-            self.state.steer_target, 0.0, self.steer_return_rate * dt
+            self.state.steer_target, 0.0, steer_decay * dt
         )
         self.state.throttle_target = self._move_towards(
-            self.state.throttle_target, 500.0, self.throttle_return_rate * dt
+            self.state.throttle_target, 500.0, throttle_decay * dt
         )
         self.clamp()
 
@@ -209,12 +219,16 @@ class ManualControlWasd(Node):
     def handle_key(self, key: str):
         if key in ("w", "W", "\x1b[A"):
             self.state.throttle_target += self.throttle_step
+            self._last_throttle_input_ts = time.monotonic()
         elif key in ("s", "S", "\x1b[B"):
             self.state.throttle_target -= self.throttle_step
+            self._last_throttle_input_ts = time.monotonic()
         elif key in ("a", "A", "\x1b[D"):
             self.state.steer_target -= self.steer_step
+            self._last_steer_input_ts = time.monotonic()
         elif key in ("d", "D", "\x1b[C"):
             self.state.steer_target += self.steer_step
+            self._last_steer_input_ts = time.monotonic()
         elif key == "c":
             self.state.steer_target = 0.0
         elif key == "v":
