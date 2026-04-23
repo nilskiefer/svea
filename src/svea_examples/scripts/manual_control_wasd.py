@@ -62,12 +62,12 @@ class ManualControlWasd(Node):
         self.state = CommandState()
 
         self.rate_hz = 20.0
-        self.steer_step = 120.0
-        self.throttle_step = 55.0
+        self.steer_step = 170.0
+        self.throttle_step = 90.0
         self.steer_return_rate = 1400.0
         self.throttle_return_rate = 1100.0
         self.input_hold_window_s = 0.14
-        self.active_decay_scale = 0.22
+        self.active_decay_scale = 0.10
         self.min_steer = -1000.0
         self.max_steer = 1000.0
         self.min_throttle = 0.0
@@ -302,6 +302,16 @@ def main(args=None):
                 if key is None:
                     continue
                 should_quit = node.handle_key(key)
+                if should_quit:
+                    break
+                # Drain queued key events so combined inputs (e.g. w+d) stack in the same cycle.
+                while True:
+                    key = term.read_key(timeout_s=0.0)
+                    if key is None:
+                        break
+                    should_quit = node.handle_key(key)
+                    if should_quit:
+                        break
                 if should_quit:
                     break
     except KeyboardInterrupt:
