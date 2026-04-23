@@ -44,13 +44,14 @@ class RawTerminal:
         ch = sys.stdin.read(1)
         if ch == "\x1b":
             # Handle arrow keys: ESC [ A/B/C/D
-            ready, _, _ = select.select([sys.stdin], [], [], 0.0)
-            if ready:
-                second = sys.stdin.read(1)
-                ready, _, _ = select.select([sys.stdin], [], [], 0.0)
-                third = sys.stdin.read(1) if ready else ""
-                seq = ch + second + third
-                return seq
+            ready, _, _ = select.select([sys.stdin], [], [], 0.02)
+            if not ready:
+                return ch
+            second = sys.stdin.read(1)
+            ready, _, _ = select.select([sys.stdin], [], [], 0.02)
+            third = sys.stdin.read(1) if ready else ""
+            seq = ch + second + third
+            return seq
         return ch
 
 
@@ -63,8 +64,8 @@ class ManualControlWasd(Node):
         self.rate_hz = 20.0
         self.steer_step = 120.0
         self.throttle_step = 55.0
-        self.steer_return_rate = 900.0
-        self.throttle_return_rate = 320.0
+        self.steer_return_rate = 1400.0
+        self.throttle_return_rate = 1100.0
         self.min_steer = -1000.0
         self.max_steer = 1000.0
         self.min_throttle = 0.0
@@ -72,8 +73,8 @@ class ManualControlWasd(Node):
         self._last_publish_ts = time.monotonic()
 
         # First-order low-pass smoothing. Smaller tau => more responsive.
-        self.steer_tau_s = 0.18
-        self.throttle_tau_s = 0.28
+        self.steer_tau_s = 0.14
+        self.throttle_tau_s = 0.12
 
         # Smoothed command actually published.
         self._y_cmd = 0.0
@@ -136,6 +137,7 @@ class ManualControlWasd(Node):
         self._z_cmd += throttle_alpha * (self.state.throttle_target - self._z_cmd)
         self._y_cmd = max(self.min_steer, min(self.max_steer, self._y_cmd))
         self._z_cmd = max(self.min_throttle, min(self.max_throttle, self._z_cmd))
+        self.print_live_state()
 
         msg = ManualControl()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -192,14 +194,26 @@ class ManualControlWasd(Node):
             f"aux5={'ON' if self.state.aux5_on else 'OFF'}"
         )
 
+    def print_live_state(self):
+        line = (
+            f"y={self._y_cmd:7.1f} z={self._z_cmd:7.1f} "
+            f"yt={self.state.steer_target:7.1f} zt={self.state.throttle_target:7.1f} "
+            f"diff={'ON' if self.state.diff_on else 'OFF'} "
+            f"gear={'HIGH' if self.state.high_gear else 'LOW'} "
+            f"aux4={'ON' if self.state.aux4_on else 'OFF'} "
+            f"aux5={'ON' if self.state.aux5_on else 'OFF'}"
+        )
+        sys.stdout.write("\r" + line)
+        sys.stdout.flush()
+
     def handle_key(self, key: str):
-        if key in ("w", "\x1b[A"):
+        if key in ("w", "W", "\x1b[A"):
             self.state.throttle_target += self.throttle_step
-        elif key in ("s", "\x1b[B"):
+        elif key in ("s", "S", "\x1b[B"):
             self.state.throttle_target -= self.throttle_step
-        elif key in ("a", "\x1b[D"):
+        elif key in ("a", "A", "\x1b[D"):
             self.state.steer_target -= self.steer_step
-        elif key in ("d", "\x1b[C"):
+        elif key in ("d", "D", "\x1b[C"):
             self.state.steer_target += self.steer_step
         elif key == "c":
             self.state.steer_target = 0.0
