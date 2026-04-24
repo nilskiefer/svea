@@ -1,12 +1,12 @@
 # ros2 run mavros mavros_node --ros-args --params-file /svea_ws/src/svea_core/params/svea_mavros.yaml
 /**:
   ros__parameters:
-    fcu_url: "udp://:14551@host.docker.internal:14551"
+    fcu_url: "udp://:14551@127.0.0.1:14551"
     plugin_allowlist:
-      #- sys_status
-      #- sys_time
-      #- command
-      #- param
+      - sys_status
+      - sys_time
+      - command
+      - param
       - rc_io
       - imu
       - state
