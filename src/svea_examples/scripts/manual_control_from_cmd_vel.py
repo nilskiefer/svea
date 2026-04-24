@@ -17,16 +17,23 @@ class ManualControlFromCmdVel(Node):
         self.declare_parameter("publish_topic", "/mavros/manual_control/send")
         self.declare_parameter("publish_rate_hz", 20.0)
         self.declare_parameter("command_timeout_s", 0.30)
-        self.declare_parameter("steering_axis", 0)
-        self.declare_parameter("throttle_axis", 5)
+        self.declare_parameter("steering_axis", 0)  # first axis
+        self.declare_parameter("throttle_axis", 5)  # sixth axis (forward)
+        self.declare_parameter("reverse_axis", 2)   # third axis (reverse)
         self.declare_parameter("steering_gain", 1000.0)
-        self.declare_parameter("throttle_gain", 500.0)
+        self.declare_parameter("throttle_gain", 500.0)  # +/- from neutral 500
         self.declare_parameter("throttle_axis_idle_value", 1.0)
         self.declare_parameter("throttle_axis_full_value", -1.0)
-        self.declare_parameter("require_enable_button", True)
-        self.declare_parameter("enable_button", 5)
+        self.declare_parameter("reverse_axis_idle_value", 1.0)
+        self.declare_parameter("reverse_axis_full_value", -1.0)
+        self.declare_parameter("toggle_diff_button", 0)
+        self.declare_parameter("toggle_gear_button", 1)
+        self.declare_parameter("toggle_aux4_button", 2)
+        self.declare_parameter("toggle_aux5_button", 3)
         self.declare_parameter("default_diff_on", True)
         self.declare_parameter("default_high_gear", False)
+        self.declare_parameter("default_aux4_on", False)
+        self.declare_parameter("default_aux5_on", False)
 
         self.joy_topic = self.get_parameter("joy_topic").value
         self.publish_topic = self.get_parameter("publish_topic").value
@@ -34,6 +41,7 @@ class ManualControlFromCmdVel(Node):
         self.command_timeout_s = float(self.get_parameter("command_timeout_s").value)
         self.steering_axis = int(self.get_parameter("steering_axis").value)
         self.throttle_axis = int(self.get_parameter("throttle_axis").value)
+        self.reverse_axis = int(self.get_parameter("reverse_axis").value)
         self.steering_gain = float(self.get_parameter("steering_gain").value)
         self.throttle_gain = float(self.get_parameter("throttle_gain").value)
         self.throttle_axis_idle_value = float(
@@ -42,16 +50,25 @@ class ManualControlFromCmdVel(Node):
         self.throttle_axis_full_value = float(
             self.get_parameter("throttle_axis_full_value").value
         )
-        self.require_enable_button = bool(
-            self.get_parameter("require_enable_button").value
+        self.reverse_axis_idle_value = float(
+            self.get_parameter("reverse_axis_idle_value").value
         )
-        self.enable_button = int(self.get_parameter("enable_button").value)
+        self.reverse_axis_full_value = float(
+            self.get_parameter("reverse_axis_full_value").value
+        )
+        self.toggle_diff_button = int(self.get_parameter("toggle_diff_button").value)
+        self.toggle_gear_button = int(self.get_parameter("toggle_gear_button").value)
+        self.toggle_aux4_button = int(self.get_parameter("toggle_aux4_button").value)
+        self.toggle_aux5_button = int(self.get_parameter("toggle_aux5_button").value)
         self.diff_on = bool(self.get_parameter("default_diff_on").value)
         self.high_gear = bool(self.get_parameter("default_high_gear").value)
+        self.aux4_on = bool(self.get_parameter("default_aux4_on").value)
+        self.aux5_on = bool(self.get_parameter("default_aux5_on").value)
 
         self._steering_axis_value = 0.0
         self._throttle_axis_value = self.throttle_axis_idle_value
-        self._enable_pressed = not self.require_enable_button
+        self._reverse_axis_value = self.reverse_axis_idle_value
+        self._last_buttons = []
         self._last_cmd_ts = 0.0
 
         self._diff_on = 1000.0
@@ -70,44 +87,82 @@ class ManualControlFromCmdVel(Node):
         )
 
     def _on_joy(self, msg: Joy):
-        if self.steering_axis >= len(msg.axes) or self.throttle_axis >= len(msg.axes):
+        if (
+            self.steering_axis >= len(msg.axes)
+            or self.throttle_axis >= len(msg.axes)
+            or self.reverse_axis >= len(msg.axes)
+        ):
             raise RuntimeError(
-                f"Joy axis out of range: steering_axis={self.steering_axis}, throttle_axis={self.throttle_axis}, axes_len={len(msg.axes)}"
+                "Joy axis out of range: "
+                f"steering_axis={self.steering_axis}, "
+                f"throttle_axis={self.throttle_axis}, "
+                f"reverse_axis={self.reverse_axis}, "
+                f"axes_len={len(msg.axes)}"
             )
 
-        if self.require_enable_button:
-            if self.enable_button >= len(msg.buttons):
+        toggle_buttons = [
+            self.toggle_diff_button,
+            self.toggle_gear_button,
+            self.toggle_aux4_button,
+            self.toggle_aux5_button,
+        ]
+        for idx in toggle_buttons:
+            if idx >= len(msg.buttons):
                 raise RuntimeError(
-                    f"Enable button out of range: enable_button={self.enable_button}, buttons_len={len(msg.buttons)}"
+                    f"Toggle button out of range: button={idx}, buttons_len={len(msg.buttons)}"
                 )
-            self._enable_pressed = bool(msg.buttons[self.enable_button])
-        else:
-            self._enable_pressed = True
+
+        if not self._last_buttons:
+            self._last_buttons = [0] * len(msg.buttons)
+
+        if msg.buttons[self.toggle_diff_button] and not self._last_buttons[self.toggle_diff_button]:
+            self.diff_on = not self.diff_on
+        if msg.buttons[self.toggle_gear_button] and not self._last_buttons[self.toggle_gear_button]:
+            self.high_gear = not self.high_gear
+        if msg.buttons[self.toggle_aux4_button] and not self._last_buttons[self.toggle_aux4_button]:
+            self.aux4_on = not self.aux4_on
+        if msg.buttons[self.toggle_aux5_button] and not self._last_buttons[self.toggle_aux5_button]:
+            self.aux5_on = not self.aux5_on
 
         self._steering_axis_value = float(msg.axes[self.steering_axis])
         self._throttle_axis_value = float(msg.axes[self.throttle_axis])
+        self._reverse_axis_value = float(msg.axes[self.reverse_axis])
+        self._last_buttons = list(msg.buttons)
         self._last_cmd_ts = time.monotonic()
+
+    @staticmethod
+    def _axis_to_positive_norm(value: float, idle_value: float, full_value: float) -> float:
+        denom = idle_value - full_value
+        if abs(denom) < 1e-6:
+            raise RuntimeError(
+                "Invalid axis mapping: idle_value equals full_value"
+            )
+        mapped = (idle_value - value) / denom
+        return max(0.0, min(1.0, mapped))
 
     def _publish_manual_control(self):
         now = time.monotonic()
         stale = (now - self._last_cmd_ts) > self.command_timeout_s
-        active = (not stale) and self._enable_pressed
 
-        if active:
+        if not stale:
             steering = self._steering_axis_value
-            denom = self.throttle_axis_idle_value - self.throttle_axis_full_value
-            if abs(denom) < 1e-6:
-                raise RuntimeError(
-                    "Invalid throttle mapping: throttle_axis_idle_value equals throttle_axis_full_value"
-                )
-            throttle_norm = (self.throttle_axis_idle_value - self._throttle_axis_value) / denom
-            throttle_norm = max(0.0, min(1.0, throttle_norm))
+            forward_norm = self._axis_to_positive_norm(
+                self._throttle_axis_value,
+                self.throttle_axis_idle_value,
+                self.throttle_axis_full_value,
+            )
+            reverse_norm = self._axis_to_positive_norm(
+                self._reverse_axis_value,
+                self.reverse_axis_idle_value,
+                self.reverse_axis_full_value,
+            )
+            signed_throttle = max(-1.0, min(1.0, forward_norm - reverse_norm))
         else:
             steering = 0.0
-            throttle_norm = 0.0
+            signed_throttle = 0.0
 
         y = max(-1000.0, min(1000.0, steering * self.steering_gain))
-        z = max(0.0, min(1000.0, 500.0 + throttle_norm * self.throttle_gain))
+        z = max(0.0, min(1000.0, 500.0 + signed_throttle * self.throttle_gain))
 
         msg = ManualControl()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -124,8 +179,8 @@ class ManualControlFromCmdVel(Node):
         msg.aux1 = self._diff_on if self.diff_on else self._diff_off
         msg.aux2 = self._diff_on if self.diff_on else self._diff_off
         msg.aux3 = self._gear_high if self.high_gear else self._gear_low
-        msg.aux4 = self._aux_off
-        msg.aux5 = self._aux_off
+        msg.aux4 = self._aux_on if self.aux4_on else self._aux_off
+        msg.aux5 = self._aux_on if self.aux5_on else self._aux_off
         msg.aux6 = self._aux_off
         self.pub.publish(msg)
 
