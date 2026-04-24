@@ -31,6 +31,7 @@ class ManualControlFromCmdVel(Node):
         self.declare_parameter("toggle_gear_button", 1)
         self.declare_parameter("toggle_aux4_button", 2)
         self.declare_parameter("toggle_aux5_button", 3)
+        self.declare_parameter("proportional_aux_channel", 5)
         self.declare_parameter("aux2_axis", 5)
         self.declare_parameter("aux2_axis_deadzone", 0.10)
         self.declare_parameter("aux2_rate_per_s", 900.0)
@@ -66,6 +67,9 @@ class ManualControlFromCmdVel(Node):
         self.toggle_gear_button = int(self.get_parameter("toggle_gear_button").value)
         self.toggle_aux4_button = int(self.get_parameter("toggle_aux4_button").value)
         self.toggle_aux5_button = int(self.get_parameter("toggle_aux5_button").value)
+        self.proportional_aux_channel = int(
+            self.get_parameter("proportional_aux_channel").value
+        )
         self.aux2_axis = int(self.get_parameter("aux2_axis").value)
         self.aux2_axis_deadzone = float(self.get_parameter("aux2_axis_deadzone").value)
         self.aux2_rate_per_s = float(self.get_parameter("aux2_rate_per_s").value)
@@ -79,7 +83,7 @@ class ManualControlFromCmdVel(Node):
         self._throttle_axis_value = self.throttle_axis_idle_value
         self._reverse_axis_value = self.reverse_axis_idle_value
         self._aux2_axis_value = 0.0
-        self._aux2_value = max(-1000.0, min(1000.0, self.aux2_default))
+        self._aux_value = max(-1000.0, min(1000.0, self.aux2_default))
         self._last_buttons = []
         self._last_cmd_ts = 0.0
         self._last_publish_ts = time.monotonic()
@@ -95,8 +99,14 @@ class ManualControlFromCmdVel(Node):
         self.create_subscription(Joy, self.joy_topic, self._on_joy, 10)
         self.create_timer(1.0 / self.publish_rate_hz, self._publish_manual_control)
 
+        if self.proportional_aux_channel < 1 or self.proportional_aux_channel > 6:
+            raise RuntimeError(
+                f"Invalid proportional_aux_channel={self.proportional_aux_channel}, expected 1..6"
+            )
+
         self.get_logger().info(
-            f"bridge ready: joy='{self.joy_topic}', publish='{self.publish_topic}', rate={self.publish_rate_hz:.1f}Hz"
+            f"bridge ready: joy='{self.joy_topic}', publish='{self.publish_topic}', "
+            f"rate={self.publish_rate_hz:.1f}Hz, proportional_aux_channel={self.proportional_aux_channel}"
         )
 
     def _on_joy(self, msg: Joy):
@@ -178,8 +188,8 @@ class ManualControlFromCmdVel(Node):
             aux2_axis_cmd = self._aux2_axis_value
             if abs(aux2_axis_cmd) < self.aux2_axis_deadzone:
                 aux2_axis_cmd = 0.0
-            self._aux2_value += aux2_axis_cmd * self.aux2_rate_per_s * dt
-            self._aux2_value = max(-1000.0, min(1000.0, self._aux2_value))
+            self._aux_value += aux2_axis_cmd * self.aux2_rate_per_s * dt
+            self._aux_value = max(-1000.0, min(1000.0, self._aux_value))
         else:
             steering = 0.0
             signed_throttle = 0.0
@@ -199,12 +209,22 @@ class ManualControlFromCmdVel(Node):
         msg.enabled_extensions = 252
         msg.s = 0.0
         msg.t = 0.0
-        msg.aux1 = self._diff_on if self.diff_on else self._diff_off
-        msg.aux2 = self._aux2_value
-        msg.aux3 = self._gear_high if self.high_gear else self._gear_low
-        msg.aux4 = self._aux_on if self.aux4_on else self._aux_off
-        msg.aux5 = self._aux_on if self.aux5_on else self._aux_off
-        msg.aux6 = self._aux_off
+        aux_values = {
+            1: self._diff_on if self.diff_on else self._diff_off,
+            2: 0.0,
+            3: self._gear_high if self.high_gear else self._gear_low,
+            4: self._aux_on if self.aux4_on else self._aux_off,
+            5: self._aux_on if self.aux5_on else self._aux_off,
+            6: self._aux_off,
+        }
+        aux_values[self.proportional_aux_channel] = self._aux_value
+
+        msg.aux1 = aux_values[1]
+        msg.aux2 = aux_values[2]
+        msg.aux3 = aux_values[3]
+        msg.aux4 = aux_values[4]
+        msg.aux5 = aux_values[5]
+        msg.aux6 = aux_values[6]
         self.pub.publish(msg)
 
 
